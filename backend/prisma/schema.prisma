@@ -1,0 +1,588 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     String               @id @default(uuid())
+  name                   String
+  email                  String               @unique
+  emailNormalized        String               @unique @map("email_normalized")
+  mobileNumber           String?              @map("mobile_number")
+  companyName            String?              @map("company_name")
+  role                   String               @default("QUANTITY_SURVEYOR")
+  status                 String               @default("ACTIVE") // ACTIVE | SUSPENDED | PENDING_VERIFICATION
+  passwordHash           String?              @map("password_hash")
+  googleId               String?              @unique @map("google_id")
+  profileImage           String?              @map("profile_image")
+  isVerified             Boolean              @default(false) @map("is_verified")
+  authenticationProvider String               @default("email") @map("authentication_provider")
+  lastLoginAt            DateTime?            @map("last_login_at")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
+  authAccounts           AuthAccount[]
+  sessions               Session[]
+  projects               Project[]
+  projectMembers         ProjectMember[]
+  otpVerifications       OtpVerification[]
+  passwordResetTokens    PasswordResetToken[]
+  notifications          Notification[]
+  rateImportLogs         RateImportLog[]
+
+  @@map("users")
+}
+
+model AuthAccount {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  provider          String   // EMAIL | GOOGLE
+  providerAccountId String   @map("provider_account_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("auth_accounts")
+}
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  sessionTokenHash String    @map("session_token_hash")
+  expiresAt        DateTime  @map("expires_at")
+  lastUsedAt       DateTime? @map("last_used_at")
+  ipAddress        String?   @map("ip_address")
+  userAgent        String?   @map("user_agent")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model OtpVerification {
+  id                 String    @id @default(uuid())
+  userId             String?   @map("user_id")
+  email              String
+  otpHash            String    @map("otp_hash")
+  expiresAt          DateTime  @map("expires_at")
+  verificationStatus Boolean   @default(false) @map("verification_status")
+  attemptCount       Int       @default(0) @map("attempt_count")
+  purpose            String    @default("login")
+  verifiedAt         DateTime? @map("verified_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  user               User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("otp_verifications")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  email     String
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model RateSource {
+  id            String             @id @default(uuid())
+  sourceName    String             @map("source_name")
+  sourceType    String             @default("SOR") @map("source_type")
+  organization  String             @default("Government")
+  edition       String?
+  year          String             @default("2026-27")
+  effectiveDate DateTime?          @map("effective_date")
+  state         String             @default("Telangana")
+  location      String             @default("Telangana / All India")
+  reference     String?
+  status        String             @default("ACTIVE") // ACTIVE | INACTIVE
+  importedAt    DateTime           @default(now()) @map("imported_at")
+  projects      Project[]
+  items         ConstructionItem[]
+  materials     MaterialRate[]
+  labour        LabourRate[]
+  equipment     EquipmentRate[]
+  scheduleRates ScheduleOfRate[]
+
+  @@map("rate_sources")
+}
+
+model ConstructionItem {
+  id                String      @id @default(uuid())
+  itemCode          String      @unique @map("item_code")
+  itemDescription   String      @map("item_description")
+  category          String
+  subCategory       String?     @map("sub_category")
+  sectionCode       String?     @map("section_code")
+  subsectionCode    String?     @map("subsection_code")
+  unit              String
+  specification     String?
+  standardReference String?     @map("standard_reference")
+  rateSourceId      String?     @map("rate_source_id")
+  active            Boolean     @default(true)
+  createdAt         DateTime    @default(now()) @map("created_at")
+  rateSource        RateSource? @relation(fields: [rateSourceId], references: [id], onDelete: SetNull)
+
+  @@map("construction_items")
+}
+
+model MaterialRate {
+  id              String      @id @default(uuid())
+  materialCode    String?     @map("material_code")
+  materialName    String      @unique @map("material_name")
+  category        String
+  sectionCode     String?     @map("section_code")
+  unit            String
+  unitRate        Float       @map("unit_rate")
+  location        String      @default("Telangana")
+  state           String      @default("Telangana")
+  effectiveDate   DateTime?   @map("effective_date")
+  source          String      @default("Telangana Common SoR 2026-27")
+  sourceReference String?     @map("source_reference")
+  rateSourceId    String?     @map("rate_source_id")
+  active          Boolean     @default(true)
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  rateSource      RateSource? @relation(fields: [rateSourceId], references: [id], onDelete: SetNull)
+
+  @@map("material_rates")
+}
+
+model LabourRate {
+  id               String      @id @default(uuid())
+  labourCode       String?     @map("labour_code")
+  labourType       String      @unique @map("labour_type")
+  category         String      @default("Skilled") // Skilled | Semi Skilled | Unskilled | Other
+  unit             String      @default("Per Day")
+  dailyRate        Float       @map("daily_rate")
+  zoneIRate        Float       @default(0) @map("zone_i_rate")
+  zoneIIRate       Float       @default(0) @map("zone_ii_rate")
+  zoneIIIRate      Float       @default(0) @map("zone_iii_rate")
+  productivityRate Float       @default(1.0) @map("productivity_rate")
+  location         String      @default("Telangana")
+  state            String      @default("Telangana")
+  effectiveDate    DateTime?   @map("effective_date")
+  source           String      @default("Telangana Common SoR 2026-27")
+  rateAuthority    String?     @map("rate_authority")
+  rateSourceId     String?     @map("rate_source_id")
+  active           Boolean     @default(true)
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  rateSource       RateSource? @relation(fields: [rateSourceId], references: [id], onDelete: SetNull)
+
+  @@map("labour_rates")
+}
+
+model EquipmentRate {
+  id             String      @id @default(uuid())
+  equipmentCode  String?     @map("equipment_code")
+  equipmentName  String      @unique @map("equipment_name")
+  unit           String      @default("Hour")
+  hourlyRate     Float       @map("hourly_rate")
+  operatingBasis String      @default("Hour") @map("operating_basis")
+  zoneIHire      Float       @default(0) @map("zone_i_hire")
+  zoneIFuel      Float       @default(0) @map("zone_i_fuel")
+  zoneICrew      Float       @default(0) @map("zone_i_crew")
+  zoneITotal     Float       @default(0) @map("zone_i_total")
+  zoneIIHire     Float       @default(0) @map("zone_ii_hire")
+  zoneIIFuel     Float       @default(0) @map("zone_ii_fuel")
+  zoneIICrew     Float       @default(0) @map("zone_ii_crew")
+  zoneIITotal    Float       @default(0) @map("zone_ii_total")
+  zoneIIIHire    Float       @default(0) @map("zone_iii_hire")
+  zoneIIIFuel    Float       @default(0) @map("zone_iii_fuel")
+  zoneIIICrew    Float       @default(0) @map("zone_iii_crew")
+  zoneIIITotal   Float       @default(0) @map("zone_iii_total")
+  operatingRate  Float       @default(1.0) @map("operating_rate")
+  location       String      @default("Telangana")
+  state          String      @default("Telangana")
+  effectiveDate  DateTime?   @map("effective_date")
+  source         String      @default("Telangana Common SoR 2026-27")
+  rateSourceId   String?     @map("rate_source_id")
+  active         Boolean     @default(true)
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  rateSource     RateSource? @relation(fields: [rateSourceId], references: [id], onDelete: SetNull)
+
+  @@map("equipment_rates")
+}
+
+model ScheduleOfRate {
+  id                String      @id @default(uuid())
+  itemCode          String      @map("item_code")
+  itemDescription   String      @map("item_description")
+  unit              String
+  rate              Float
+  category          String
+  subCategory       String?     @map("sub_category")
+  sectionCode       String?     @map("section_code")
+  subsectionCode    String?     @map("subsection_code")
+  source            String      @default("Telangana Common SoR 2026-27")
+  edition           String?
+  year              String      @default("2026-27")
+  state             String      @default("Telangana")
+  location          String      @default("Telangana")
+  effectiveDate     DateTime?   @map("effective_date")
+  specification     String?
+  standardReference String?     @map("standard_reference")
+  part              String?
+  status            String      @default("Active")
+  rateSourceId      String?     @map("rate_source_id")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  rateSource        RateSource? @relation(fields: [rateSourceId], references: [id], onDelete: SetNull)
+
+  @@map("schedule_of_rates")
+}
+
+model RateImportLog {
+  id             String   @id @default(uuid())
+  filename       String
+  uploadedBy     String   @map("uploaded_by")
+  sourceName     String   @map("source_name")
+  version        String   @default("1.0")
+  recordsFound   Int      @default(0) @map("records_found")
+  importedCount  Int      @default(0) @map("imported_count")
+  duplicateCount Int      @default(0) @map("duplicate_count")
+  invalidCount   Int      @default(0) @map("invalid_count")
+  failedCount    Int      @default(0) @map("failed_count")
+  errorDetails   String?  @map("error_details")
+  status         String   @default("COMPLETED")
+  createdAt      DateTime @default(now()) @map("created_at")
+  user           User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@map("rate_import_logs")
+}
+
+model Project {
+  id                  String                    @id @default(uuid())
+  userId              String                    @map("user_id")
+  projectName         String                    @map("project_name")
+  companyName         String?                   @map("company_name")
+  engineerName        String?                   @map("engineer_name")
+  projectType         String                    @default("Residential") @map("project_type")
+  buildingType        String                    @default("Individual House") @map("building_type")
+  location            String?
+  state               String                    @default("Telangana")
+  zone                String                    @default("Zone-I") // Zone-I | Zone-II | Zone-III
+  rateSourceId        String?                   @map("rate_source_id")
+  rateSourceYear      String                    @default("2026-27") @map("rate_source_year")
+  gstRate             Float                     @default(18.0) @map("gst_rate")
+  overheadPercentage  Float                     @default(8.0) @map("overhead_percentage")
+  contingencyRate     Float                     @default(5.0) @map("contingency_rate")
+  numberOfFloors      Int                       @default(1) @map("number_of_floors")
+  soilType            String?                   @map("soil_type")
+  designCode          String?                   @map("design_code")
+  description         String?
+  unitSystem          String                    @default("metric") @map("unit_system")
+  status              String                    @default("active")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+  user                User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rateSource          RateSource?               @relation(fields: [rateSourceId], references: [id], onDelete: SetNull)
+  floors              Floor[]
+  members             ProjectMember[]
+  boqItems            BoqItem[]
+  costEstimate        CostEstimate?
+  estimateSnapshots   ProjectEstimateSnapshot[]
+  revisions           ProjectRevision[]
+
+  @@map("projects")
+}
+
+model ProjectRevision {
+  id             String   @id @default(uuid())
+  projectId      String   @map("project_id")
+  revisionNumber Int      @map("revision_number")
+  description    String?
+  designSnapshot String   @map("design_snapshot")
+  costSnapshot   String?  @map("cost_snapshot")
+  createdAt      DateTime @default(now()) @map("created_at")
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_revisions")
+}
+
+model ProjectEstimateSnapshot {
+  id             String   @id @default(uuid())
+  projectId      String   @map("project_id")
+  snapshotDate   DateTime @default(now()) @map("snapshot_date")
+  rateSourceId   String?  @map("rate_source_id")
+  rateSourceName String   @map("rate_source_name")
+  rateSourceYear String   @map("rate_source_year")
+  zone           String   @default("Zone-I")
+  totalCost      Float    @default(0) @map("total_cost")
+  snapshotData   String   @map("snapshot_data")
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_estimate_snapshots")
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  userId    String   @map("user_id")
+  role      String   @default("QUANTITY_SURVEYOR")
+  joinedAt  DateTime @default(now()) @map("joined_at")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@map("project_members")
+}
+
+model Floor {
+  id            String        @id @default(uuid())
+  projectId     String        @map("project_id")
+  floorName     String        @map("floor_name")
+  floorNumber   Int           @map("floor_number")
+  length        Float         @default(10)
+  width         Float         @default(8)
+  height        Float         @default(3.0)
+  wallHeight    Float         @default(3.0) @map("wall_height")
+  wallThickness Float         @default(0.23) @map("wall_thickness")
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  walls         Wall[]
+  rooms         Room[]
+  doors         Door[]
+  windows       Window[]
+  columns       Column[]
+  beams         Beam[]
+  slabs         Slab[]
+  staircases    Staircase[]
+  footings      Footing[]
+  roofs         Roof[]
+  designLayout  DesignLayout?
+
+  @@map("floors")
+}
+
+model Wall {
+  id        String   @id @default(uuid())
+  floorId   String   @map("floor_id")
+  startX    Float    @map("start_x")
+  startY    Float    @map("start_y")
+  endX      Float    @map("end_x")
+  endY      Float    @map("end_y")
+  length    Float
+  height    Float    @default(3.0)
+  thickness Float    @default(0.23)
+  wallType  String   @default("brick") @map("wall_type")
+  material  String   @default("brick")
+  floor     Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  doors     Door[]
+  windows   Window[]
+
+  @@map("walls")
+}
+
+model Column {
+  id            String    @id @default(uuid())
+  floorId       String    @map("floor_id")
+  columnId      String    @map("column_id")
+  x             Float
+  y             Float
+  width         Float     @default(0.3)
+  depth         Float     @default(0.3)
+  height        Float     @default(3.0)
+  concreteGrade String    @default("M25") @map("concrete_grade")
+  reinforcement Float     @default(1.5)
+  floor         Floor     @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  footings      Footing[]
+
+  @@map("columns")
+}
+
+model Beam {
+  id            String @id @default(uuid())
+  floorId       String @map("floor_id")
+  startX        Float  @map("start_x")
+  startY        Float  @map("start_y")
+  endX          Float  @map("end_x")
+  endY          Float  @map("end_y")
+  length        Float
+  width         Float  @default(0.23)
+  depth         Float  @default(0.45)
+  concreteGrade String @default("M25") @map("concrete_grade")
+  reinforcement Float  @default(1.5)
+  floor         Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+
+  @@map("beams")
+}
+
+model Slab {
+  id            String @id @default(uuid())
+  floorId       String @map("floor_id")
+  x             Float
+  y             Float
+  length        Float
+  width         Float
+  thickness     Float  @default(0.15)
+  concreteGrade String @default("M25") @map("concrete_grade")
+  floor         Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+
+  @@map("slabs")
+}
+
+model Staircase {
+  id         String @id @default(uuid())
+  floorId    String @map("floor_id")
+  x          Float
+  y          Float
+  stairWidth Float  @default(1.2) @map("stair_width")
+  numSteps   Int    @default(18) @map("num_steps")
+  riser      Float  @default(0.15)
+  tread      Float  @default(0.275)
+  stairType  String @default("dogged_legged") @map("stair_type")
+  floor      Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+
+  @@map("staircases")
+}
+
+model Footing {
+  id            String  @id @default(uuid())
+  floorId       String  @map("floor_id")
+  columnId      String? @map("column_id")
+  footingId     String  @map("footing_id")
+  x             Float
+  y             Float
+  length        Float   @default(1.5)
+  width         Float   @default(1.5)
+  depth         Float   @default(0.6)
+  pedestalH     Float   @default(0.9) @map("pedestal_h")
+  gradeBeamL    Float   @default(3.0) @map("grade_beam_l")
+  concreteGrade String  @default("M25") @map("concrete_grade")
+  floor         Floor   @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  column        Column? @relation(fields: [columnId], references: [id], onDelete: SetNull)
+
+  @@map("footings")
+}
+
+model Roof {
+  id              String @id @default(uuid())
+  floorId         String @map("floor_id")
+  x               Float  @default(0)
+  y               Float  @default(0)
+  length          Float  @default(10)
+  width           Float  @default(8)
+  roofType        String @default("Flat Roof") @map("roof_type")
+  roofingMaterial String @default("RCC") @map("roofing_material")
+  waterproofing   String @default("Bituminous Membrane")
+  floor           Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+
+  @@map("roofs")
+}
+
+model Room {
+  id           String @id @default(uuid())
+  floorId      String @map("floor_id")
+  roomName     String @map("room_name")
+  x            Float  @default(0)
+  y            Float  @default(0)
+  length       Float
+  width        Float
+  area         Float
+  flooringType String @default("cement") @map("flooring_type")
+  floor        Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+
+  @@map("rooms")
+}
+
+model Door {
+  id       String @id @default(uuid())
+  floorId  String @map("floor_id")
+  wallId   String @map("wall_id")
+  width    Float  @default(0.9)
+  height   Float  @default(2.1)
+  doorType String @default("single") @map("door_type")
+  material String @default("Wood")
+  position Float  @default(0.5)
+  floor    Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  wall     Wall   @relation(fields: [wallId], references: [id], onDelete: Cascade)
+
+  @@map("doors")
+}
+
+model Window {
+  id            String @id @default(uuid())
+  floorId       String @map("floor_id")
+  wallId        String @map("wall_id")
+  width         Float  @default(1.2)
+  height        Float  @default(1.2)
+  windowType    String @default("sliding") @map("window_type")
+  frameMaterial String @default("UPVC") @map("frame_material")
+  position      Float  @default(0.5)
+  sillHeight    Float  @default(0.9) @map("sill_height")
+  floor         Floor  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  wall          Wall   @relation(fields: [wallId], references: [id], onDelete: Cascade)
+
+  @@map("windows")
+}
+
+model BoqItem {
+  id                String  @id @default(uuid())
+  projectId         String  @map("project_id")
+  itemNumber        Int     @default(1) @map("item_number")
+  itemCode          String? @map("item_code")
+  itemName          String  @map("item_name")
+  description       String?
+  specification     String?
+  standardReference String? @map("standard_reference")
+  unit              String
+  quantity          Float
+  unitRate          Float   @map("unit_rate")
+  totalAmount       Float   @map("total_amount")
+  rateSource        String? @map("rate_source")
+  rateYear          String? @map("rate_year")
+  category          String  @default("general")
+  isCustom          Boolean @default(false) @map("is_custom")
+  project           Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("boq_items")
+}
+
+model CostEstimate {
+  id            String  @id @default(uuid())
+  projectId     String  @unique @map("project_id")
+  materialCost  Float   @default(0) @map("material_cost")
+  laborCost     Float   @default(0) @map("labor_cost")
+  equipmentCost Float   @default(0) @map("equipment_cost")
+  overheads     Float   @default(0)
+  gst           Float   @default(0)
+  contingency   Float   @default(0)
+  totalCost     Float   @default(0) @map("total_cost")
+  costPerSqFt   Float   @default(0) @map("cost_per_sqft")
+  costPerFloor  Float   @default(0) @map("cost_per_floor")
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("cost_estimates")
+}
+
+model DesignLayout {
+  id         String   @id @default(uuid())
+  floorId    String   @unique @map("floor_id")
+  gridScale  Float    @default(0.5) @map("grid_scale")
+  layoutData String   @map("layout_data")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  floor      Floor    @relation(fields: [floorId], references: [id], onDelete: Cascade)
+
+  @@map("design_layouts")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
